@@ -1,15 +1,5 @@
 import time
 from app import config
-
-# SPOTIFY_CLIENT_ID='dc48d88ad1d34378a9b45c955f602ea7'
-# SPOTIFY_CLIENT_SECRET='c9cf2a60270643dd8c0d684c8e493b32'
-# DBUSER='root'
-# PORT=3306
-# DBPASSWORD=''
-# HOST='127.0.0.1'
-# DATABASE='spotify_recommender_database'
-# DATASET_PATH='static/spotify_dataset.sql'
-
 import requests
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -17,7 +7,8 @@ from sqlalchemy import create_engine
 from time import sleep
 from sqlalchemy import text
 
-print("deb1")
+phase = 1
+
 def connectToAPI():
     while True:
         try:
@@ -49,8 +40,15 @@ def connectToAPI():
             print("Retrying in 2 minutes...")
             time.sleep(120)
 
+def getStatus(phase):
+    return conn.execute(text(f"SELECT status FROM progress WHERE phase = {phase}")).fetchall()[0][0]
 
-print("deb2")
+def setStatusAsDone(phase):
+    trans = conn.begin()
+    conn.execute(text(f"UPDATE progress SET status = 1 WHERE phase = {phase} "))
+    trans.commit()
+
+
 try:
     print("Starting db connection")
     db_path = f'mysql+pymysql://{config.DBUSER}:{config.DBPASSWORD}@{config.HOST}/{config.DATABASE}'
@@ -62,11 +60,10 @@ except Exception as e:
     print("could not establish connection to db, shutting down...")
     exit()
 
-print("deb3")
 sp = connectToAPI()
-
-
 initial_artists = [
+
+
     'the beatles',
     'the rolling stones',
     'the doors',
@@ -171,169 +168,178 @@ initial_artists = [
     'jimi hendrix'
 ]
 
-# # # executed
-# trans = conn.begin()
-# print("Searches for each artist in the initial_artists list on the Spotify API, and inserts their data into the artists table.")
-# for index, artist in enumerate(initial_artists, start=1):
-#     try:
-#         data = sp.search(artist, limit=1, type='artist')['artists']['items'][0]
-#         id = data['id']
-#         name = data['name'].replace("'", "")
-#         genres = ','.join(data['genres']).replace("'", "")
-#         popularity = data['popularity']
-#         try:
-#             img = data['images'][0]['url']
-#         except:
-#             img = ''
-#         uri = data['uri']
-#         conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,tracks_dumped,processed) VALUES ('{id}','{name}','{genres}','{popularity}','{img}','{uri}',false,false)"))
-#         print(f"{index}/{len(initial_artists)}: {name}")
-#         sleep(1.5)
-#     except Exception as e:
-#         print(f"Error occurred for artist {artist}: {e}")
-#         continue
-
-# trans.commit()
-
-# trans = conn.begin()
-# # # the below is good
-# print("Fetches the artists related to each artist in  database from the Spotify API, and inserts their data into the artists table.")
-# result = conn.execute(text("SELECT id FROM artists"))
-# for index,row in enumerate(result, start=1):
-#     print(index)
-#     try:
-#         artists = sp.artist_related_artists(row[0])['artists']
-#         sleep(1.5)
-#         for artist in artists:
-#             id = artist['id']
-#             name = artist['name'].replace("'","")
-#             genres = ','.join(artist['genres']).replace("'","")
-#             popularity = artist['popularity']
-#             try:
-#                 img = artist['images'][0]['url']
-#             except:
-#                 img = ''
-#             uri = artist['uri']
-#             conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,tracks_dumped,processed) VALUES ('{id}','{name}','{genres}','{popularity}','{img}','{uri}',false,false)"))
-#             print(f'{index}/{result.rowcount}')
-#     except Exception as e:
-#         print(f"Error occurred: {e}")
-#         continue
-# trans.commit()
-
-# this also works I guess
-counter = 0
-trans = conn.begin()
-albumSleepTimer = 1.5
-print("Fetches the albums and singles for each artist in your database from the Spotify API, inserts their data into the albums table, and updates the artists and artists_albums tables as necessary.")
-result = conn.execute(text("SELECT id FROM artists WHERE tracks_dumped = false AND name != '0'"))
-total_rows = result.rowcount
-for index,row in enumerate(result, start=1):
-    start_time = time.time()
-    if index % 5 == 0:
-        print("Resting...")
-        sleep(60)
-
-    if counter == 1000:
-        print("The very big resting period!")
-        print("Going for coffee, be back in 15 mins.")
-        sleep(900)
-        counter = 0
-
-    try:
-        sleep(albumSleepTimer)
-        albums = sp.artist_albums(row[0],album_type='album,single')['items']
-        counter += 1
-        albumCount = len(albums)
-        print("### ARTIST PROCESSING ESTIMATED TIME: ", (albumCount * albumSleepTimer) / 60, "minutes")
-        for counter, x in enumerate(albums, start=1):
-            album = sp.album(x['id']) 
-            counter += 1
-            sleep(albumSleepTimer)
-            album_name = album['name'].replace("'","")
+if getStatus(phase) == 0:
+    trans = conn.begin()
+    print("Searches for each artist in the initial_artists list on the Spotify API, and inserts their data into the artists table.")
+    for index, artist in enumerate(initial_artists, start=1):
+        try:
+            data = sp.search(artist, limit=1, type='artist')['artists']['items'][0]
+            id = data['id']
+            name = data['name'].replace("'", "")
+            genres = ','.join(data['genres']).replace("'", "")
+            popularity = data['popularity']
             try:
-                img = album['images'][0]['url']
+                img = data['images'][0]['url']
             except:
                 img = ''
-            # print(f"{row[0]} -- {album['id']} -- {index}/{result.rowcount} -- {album_name}")
-            print(f"{x['artists'][0]['name']} --  {counter}/{albumCount} -- {index}/{result.rowcount} -- {album_name}")
-            if conn.execute(text(f"SELECT id FROM albums WHERE id = '{album['id']}'")).rowcount == 0:
-                conn.execute(text(f"INSERT IGNORE INTO albums (id,name,type,popularity,year,img,uri) VALUES ('{album['id']}','{album_name}','{album['album_type']}','{album['popularity']}','{album['release_date'][:4]}','{img}','{album['uri']}')"))
-            for artist in album['artists']:
-                if conn.execute(text(f"select id from artists where id = '{artist['id']}'")).rowcount == 0:
-                    conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,tracks_dumped,processed) values ('{artist['id']}','0','0','0','0','0',false,false) "))
-                conn.execute(text(f"INSERT IGNORE INTO artists_albums (artist_id,album_id) values ('{artist['id']}','{album['id']}') "))
-            pass
-        conn.execute(text(f"update artists set tracks_dumped='1' where id='{row[0]}'"))
+            uri = data['uri']
+            conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,tracks_dumped,processed) VALUES ('{id}','{name}','{genres}','{popularity}','{img}','{uri}',false,false)"))
+            print(f"{index}/{len(initial_artists)}: {name}")
+            sleep(1.5)
+        except Exception as e:
+            print(f"Error occurred for artist {artist}: {e}")
+            continue
 
-        elapsed_time = time.time() - start_time
-        remaining_rows = total_rows - index
-        estimated_time_remaining = elapsed_time * remaining_rows
-        hours, remainder = divmod(estimated_time_remaining, 3600)
-        minutes, _ = divmod(remainder, 60)
+    setStatusAsDone(phase)
+    phase += 1
+    trans.commit()
 
-        print(f"## Estimated time remaining: {int(hours)} hours and {int(minutes)} minutes")
-        
-    except Exception as e:
-        print(f"Error occurred: {e}")
-        continue
-
-trans.commit()
-trans = conn.begin()
-#
-print("Fetches the details for each artist in your database with placeholder values from the Spotify API, and updates their data in the artists table.")
-result = conn.execute(text(f"SELECT id FROM artists WHERE name = '0' AND genres = '0'"))
-for index,row in enumerate(result, start=1):
-    try:
-        artist = sp.artist(row[0])
-        sleep(1.5)
-        id = artist['id']
-        name = artist['name'].replace("'","")
-        genres = ','.join(artist['genres']).replace("'","")
-        popularity = artist['popularity']
+if getStatus(phase) == 0:
+    trans = conn.begin()
+    print("Fetches the artists related to each artist in  database from the Spotify API, and inserts their data into the artists table.")
+    result = conn.execute(text("SELECT id FROM artists"))
+    for index,row in enumerate(result, start=1):
+        print(index)
         try:
-            img = artist['images'][0]['url']
-        except:
-            img = ''
-        uri = artist['uri']
-        conn.execute(text(f"update artists set name='{name}',genres='{genres}',popularity='{popularity}',img='{img}',uri='{uri}',tracks_dumped=false,processed=false where id='{id}'"))
-        print(f'{index}/{result.rowcount} {name}')
-    except Exception as e:
-        print(f"Error occurred: {e}")
-        continue
-trans.commit()
-trans = conn.begin()
+            artists = sp.artist_related_artists(row[0])['artists']
+            sleep(1.5)
+            for artist in artists:
+                id = artist['id']
+                name = artist['name'].replace("'","")
+                genres = ','.join(artist['genres']).replace("'","")
+                popularity = artist['popularity']
+                try:
+                    img = artist['images'][0]['url']
+                except:
+                    img = ''
+                uri = artist['uri']
+                conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,tracks_dumped,processed) VALUES ('{id}','{name}','{genres}','{popularity}','{img}','{uri}',false,false)"))
+                print(f'{index}/{result.rowcount}')
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            continue
+
+    setStatusAsDone(phase)
+    phase += 1
+    trans.commit()
+
+if getStatus(phase) == 0:
+    counter = 0
+    trans = conn.begin()
+    albumSleepTimer = 1.5
+    print("Fetches the albums and singles for each artist in your database from the Spotify API, inserts their data into the albums table, and updates the artists and artists_albums tables as necessary.")
+    result = conn.execute(text("SELECT id FROM artists WHERE tracks_dumped = false AND name != '0'"))
+    total_rows = result.rowcount
+    for index,row in enumerate(result, start=1):
+        start_time = time.time()
+        if index % 5 == 0:
+            print("Resting...")
+            sleep(60)
+
+        if counter == 1000:
+            print("The very big resting period!")
+            print("Going for coffee, be back in 15 mins.")
+            sleep(900)
+            counter = 0
+
+        try:
+            sleep(albumSleepTimer)
+            albums = sp.artist_albums(row[0],album_type='album,single')['items']
+            counter += 1
+            albumCount = len(albums)
+            print("### ARTIST PROCESSING ESTIMATED TIME: ", (albumCount * albumSleepTimer) / 60, "minutes")
+            for counter, x in enumerate(albums, start=1):
+                album = sp.album(x['id']) 
+                counter += 1
+                sleep(albumSleepTimer)
+                album_name = album['name'].replace("'","")
+                try:
+                    img = album['images'][0]['url']
+                except:
+                    img = ''
+                # print(f"{row[0]} -- {album['id']} -- {index}/{result.rowcount} -- {album_name}")
+                print(f"{x['artists'][0]['name']} --  {counter}/{albumCount} -- {index}/{result.rowcount} -- {album_name}")
+                if conn.execute(text(f"SELECT id FROM albums WHERE id = '{album['id']}'")).rowcount == 0:
+                    conn.execute(text(f"INSERT IGNORE INTO albums (id,name,type,popularity,year,img,uri) VALUES ('{album['id']}','{album_name}','{album['album_type']}','{album['popularity']}','{album['release_date'][:4]}','{img}','{album['uri']}')"))
+                for artist in album['artists']:
+                    if conn.execute(text(f"select id from artists where id = '{artist['id']}'")).rowcount == 0:
+                        conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,tracks_dumped,processed) values ('{artist['id']}','0','0','0','0','0',false,false) "))
+                    conn.execute(text(f"INSERT IGNORE INTO artists_albums (artist_id,album_id) values ('{artist['id']}','{album['id']}') "))
+                pass
+            conn.execute(text(f"update artists set tracks_dumped='1' where id='{row[0]}'"))
+
+            elapsed_time = time.time() - start_time
+            remaining_rows = total_rows - index
+            estimated_time_remaining = elapsed_time * remaining_rows
+            hours, remainder = divmod(estimated_time_remaining, 3600)
+            minutes, _ = divmod(remainder, 60)
+
+            print(f"## Estimated time remaining: {int(hours)} hours and {int(minutes)} minutes")
+            
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            continue
+    setStatusAsDone(phase)
+    phase += 1
+    trans.commit()
+#
+if getStatus(phase) == 0:
+    trans = conn.begin()
+    print("Fetches the details for each artist in your database with placeholder values from the Spotify API, and updates their data in the artists table.")
+    result = conn.execute(text(f"SELECT id FROM artists WHERE name = '0' AND genres = '0'"))
+    for index,row in enumerate(result, start=1):
+        try:
+            artist = sp.artist(row[0])
+            sleep(1.5)
+            id = artist['id']
+            name = artist['name'].replace("'","")
+            genres = ','.join(artist['genres']).replace("'","")
+            popularity = artist['popularity']
+            try:
+                img = artist['images'][0]['url']
+            except:
+                img = ''
+            uri = artist['uri']
+            conn.execute(text(f"update artists set name='{name}',genres='{genres}',popularity='{popularity}',img='{img}',uri='{uri}',tracks_dumped=false,processed=false where id='{id}'"))
+            print(f'{index}/{result.rowcount} {name}')
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            continue
+    setStatusAsDone(phase)
+    phase += 1
+    trans.commit()
 
 
-print("Fetches the tracks for each album in your database from the Spotify API, inserts their data into the tracks table, and updates the albums, artists, and artists_tracks tables as necessary.")
-result = conn.execute(text(f"select id, name from albums where tracks_dumped = '0'"))
-for i, row in enumerate(result, start=1):
-    try:
-        tracks_in_album = sp.album_tracks(row[0])['items']
-        sleep(1.5)
-        features = sp.audio_features([x['id'] for x in tracks_in_album])
-        features = [x if x != None else {'acousticness': 0, 'danceability': 0, 'duration_ms': 0, 'energy': 0, 'instrumentalness': 0, 'key': 0, 'liveness': 0, 'valence':0, 'loudness': 0, 'mode': 0, 'speechiness': 0, 'tempo': 0, 'time_signature': 0} for x in features]
-        for index, track in enumerate(tracks_in_album,start=0):
-            conn.execute(text(f"""
-            INSERT IGNORE INTO tracks (id, name, explicit, uri, duration, key, mode, time_signature, acousticness, danceability, energy, instrumentalness, liveness, loudness, speechiness, valence, tempo, album_id)
-            values ('{track['id']}','{track['name'].replace("'","").replace("-","").replace("%","")}','{track['explicit']}','{track['uri']}','{track['duration_ms']}','{features[index]['key']}',
-            '{features[index]['mode']}','{features[index]['time_signature']}','{features[index]['acousticness']}','{features[index]['danceability']}',
-            '{features[index]['energy']}','{features[index]['instrumentalness']}','{features[index]['liveness']}','{features[index]['loudness']}',
-            '{features[index]['speechiness']}','{features[index]['valence']}','{features[index]['tempo']}','{row['id']}') 
-            """))
-            for artist in track['artists']:
-                if conn.execute(text(f"select id from artists where id ='{artist['id']}'")).rowcount == 0:
-                    conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,albums_dumped,processed) values ('{artist['id']}','0','0','0','0','0',false,false) "))
-                conn.execute(text(f"INSERT IGNORE INTO artists_tracks (artist_id, track_id) values ('{artist['id']}','{track['id']}') "))
-        conn.execute(text(f"update albums set tracks_dumped = '1' where id = '{row[0]}'"))
-        print(f"{round((i/result.rowcount)*100,2)}% {row['name']}")
-    except Exception as e:
-        print(f"Error occurred: {e}")
-        continue
-trans.commit()
 
-trans = conn.begin()
-# Update 'processed' field in the artists table
-conn.execute(text(f"UPDATE artists SET processed = '1' WHERE tracks_dumped = '1'"))
+if getStatus(phase) == 0:
+    trans = conn.begin()
+    print("Fetches the tracks for each album in your database from the Spotify API, inserts their data into the tracks table, and updates the albums, artists, and artists_tracks tables as necessary.")
+    result = conn.execute(text(f"select id, name from albums where tracks_dumped = '0'"))
+    for i, row in enumerate(result, start=1):
+        try:
+            tracks_in_album = sp.album_tracks(row[0])['items']
+            sleep(1.5)
+            features = sp.audio_features([x['id'] for x in tracks_in_album])
+            features = [x if x != None else {'acousticness': 0, 'danceability': 0, 'duration_ms': 0, 'energy': 0, 'instrumentalness': 0, 'key': 0, 'liveness': 0, 'valence':0, 'loudness': 0, 'mode': 0, 'speechiness': 0, 'tempo': 0, 'time_signature': 0} for x in features]
+            for index, track in enumerate(tracks_in_album,start=0):
+                conn.execute(text(f"""
+                INSERT IGNORE INTO tracks (id, name, explicit, uri, duration, key, mode, time_signature, acousticness, danceability, energy, instrumentalness, liveness, loudness, speechiness, valence, tempo, album_id)
+                values ('{track['id']}','{track['name'].replace("'","").replace("-","").replace("%","")}','{track['explicit']}','{track['uri']}','{track['duration_ms']}','{features[index]['key']}',
+                '{features[index]['mode']}','{features[index]['time_signature']}','{features[index]['acousticness']}','{features[index]['danceability']}',
+                '{features[index]['energy']}','{features[index]['instrumentalness']}','{features[index]['liveness']}','{features[index]['loudness']}',
+                '{features[index]['speechiness']}','{features[index]['valence']}','{features[index]['tempo']}','{row['id']}') 
+                """))
+                for artist in track['artists']:
+                    if conn.execute(text(f"select id from artists where id ='{artist['id']}'")).rowcount == 0:
+                        conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,albums_dumped,processed) values ('{artist['id']}','0','0','0','0','0',false,false) "))
+                    conn.execute(text(f"INSERT IGNORE INTO artists_tracks (artist_id, track_id) values ('{artist['id']}','{track['id']}') "))
+            conn.execute(text(f"update albums set tracks_dumped = '1' where id = '{row[0]}'"))
+            print(f"{round((i/result.rowcount)*100,2)}% {row['name']}")
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            continue
+    conn.execute(text(f"UPDATE artists SET processed = '1' WHERE tracks_dumped = '1'"))
+    setStatusAsDone(phase)
+    phase += 1
+    trans.commit()
 
-trans.commit()

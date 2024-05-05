@@ -14,7 +14,6 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=config.SPOT
 
 def search(search_string):
     results = []
-    print("Internal suffering!!!", search_string)
     if search_string:
         results = sp.search(q=search_string,type="track")['tracks']['items']
     return jsonify(results)

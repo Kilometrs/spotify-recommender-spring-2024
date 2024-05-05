@@ -6,3 +6,4 @@ app/static/img/.DS_Store
 app/config.py
 app/config.py
 app/config.py
+.cache

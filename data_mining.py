@@ -1,5 +1,8 @@
 import time
-from app import config
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+import config
 import requests
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -20,11 +23,6 @@ def connectToAPI():
                                 requests_timeout=1,retries=1)
             end_time = time.time()
             print("Connection established. Time taken:", end_time - start_time, "seconds")
-            print("Trying to get track")
-            start_time = time.time()
-            print("Track name:", sp.track('6rqhFgbbKwnb9MLmUQDhG6')['name'])
-            end_time = time.time()
-            print("Time taken:", end_time - start_time, "seconds")
             return sp
         except requests.exceptions.HTTPError as err:
             if err.response.status_code == 429:
@@ -41,7 +39,10 @@ def connectToAPI():
             time.sleep(120)
 
 def getStatus(phase):
-    return conn.execute(text(f"SELECT status FROM progress WHERE phase = {phase}")).fetchall()[0][0]
+    trans = conn.begin()
+    res = conn.execute(text(f"SELECT status FROM progress WHERE phase = {phase}")).fetchall()[0][0]
+    trans.commit()
+    return res
 
 def setStatusAsDone(phase):
     trans = conn.begin()
@@ -62,8 +63,6 @@ except Exception as e:
 
 sp = connectToAPI()
 initial_artists = [
-
-
     'the beatles',
     'the rolling stones',
     'the doors',
@@ -168,6 +167,8 @@ initial_artists = [
     'jimi hendrix'
 ]
 
+print("things are initialized")
+print(f"PHASE {phase}: ",getStatus(phase))
 if getStatus(phase) == 0:
     trans = conn.begin()
     print("Searches for each artist in the initial_artists list on the Spotify API, and inserts their data into the artists table.")
@@ -190,14 +191,17 @@ if getStatus(phase) == 0:
             print(f"Error occurred for artist {artist}: {e}")
             continue
 
+    trans.commit()
     setStatusAsDone(phase)
     phase += 1
-    trans.commit()
+else:
+    phase +=1
 
+print(f"PHASE {phase}: ",getStatus(phase))
 if getStatus(phase) == 0:
     trans = conn.begin()
     print("Fetches the artists related to each artist in  database from the Spotify API, and inserts their data into the artists table.")
-    result = conn.execute(text("SELECT id FROM artists"))
+    result = conn.execute(text(f"SELECT id FROM artists"))
     for index,row in enumerate(result, start=1):
         print(index)
         try:
@@ -219,10 +223,13 @@ if getStatus(phase) == 0:
             print(f"Error occurred: {e}")
             continue
 
+    trans.commit()
     setStatusAsDone(phase)
     phase += 1
-    trans.commit()
+else:
+    phase +=1
 
+print(f"PHASE {phase}: ",getStatus(phase))
 if getStatus(phase) == 0:
     counter = 0
     trans = conn.begin()
@@ -244,6 +251,7 @@ if getStatus(phase) == 0:
 
         try:
             sleep(albumSleepTimer)
+            print("----")
             albums = sp.artist_albums(row[0],album_type='album,single')['items']
             counter += 1
             albumCount = len(albums)
@@ -279,10 +287,13 @@ if getStatus(phase) == 0:
         except Exception as e:
             print(f"Error occurred: {e}")
             continue
+    trans.commit()
     setStatusAsDone(phase)
     phase += 1
-    trans.commit()
+else:
+    phase +=1
 #
+print(f"PHASE {phase}: ",getStatus(phase))
 if getStatus(phase) == 0:
     trans = conn.begin()
     print("Fetches the details for each artist in your database with placeholder values from the Spotify API, and updates their data in the artists table.")
@@ -306,11 +317,12 @@ if getStatus(phase) == 0:
             print(f"Error occurred: {e}")
             continue
     setStatusAsDone(phase)
-    phase += 1
     trans.commit()
+    phase += 1
+else:
+    phase +=1
 
-
-
+print(f"PHASE {phase}: ",getStatus(phase))
 if getStatus(phase) == 0:
     trans = conn.begin()
     print("Fetches the tracks for each album in your database from the Spotify API, inserts their data into the tracks table, and updates the albums, artists, and artists_tracks tables as necessary.")
@@ -339,7 +351,10 @@ if getStatus(phase) == 0:
             print(f"Error occurred: {e}")
             continue
     conn.execute(text(f"UPDATE artists SET processed = '1' WHERE tracks_dumped = '1'"))
+    trans.commit()
     setStatusAsDone(phase)
     phase += 1
-    trans.commit()
+else:
+    phase +=1
 
+setStatusAsDone(phase)

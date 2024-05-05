@@ -1,7 +1,9 @@
-from flask import render_template, send_file
-from app import app, config, services
+from flask import render_template, send_file, request
+from app import test
+from app import app, services, config
 from werkzeug.routing import BaseConverter
 import warnings
+import logging
 
 class StrListConverter(BaseConverter):
     regex = r'\w+(?:;\w+)*;?'
@@ -35,13 +37,14 @@ def download_dataset():
 
 ### Web Services ###
 
-@app.route('/recommender/api/v1.0/search=<string:search_string>', methods=['GET'])
-def search(search_string):
-    return services.search(search_string)
+@app.route('/recommender/api/v1.0/search/<thing>', methods=['GET'])
+def search(thing):
+    return services.search(thing)
 
-@app.route('/recommender/api/v1.0/recommendations=<int:from_year>&<int:to_year>&<str_list:listed_artists>&<int:popular_artists>&<int:exclude_explicit>&<str_list:track_ids>', methods=['GET'])
+@app.route('/recommender/api/v1.0/recommendations/<int:from_year>/<int:to_year>/<str_list:listed_artists>/<int:popular_artists>/<int:exclude_explicit>/<str_list:track_ids>', methods=['GET'])
 def get_recommendations(from_year, to_year, listed_artists, popular_artists, exclude_explicit, track_ids):
     return services.get_recommendations(from_year, to_year, listed_artists, popular_artists, exclude_explicit, track_ids)
+
 
 @app.route('/recommender/api/v1.0/stats', methods=['GET'])
 def get_counts():

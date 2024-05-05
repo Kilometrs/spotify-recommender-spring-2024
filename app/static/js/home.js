@@ -6,9 +6,14 @@ $(document).ready(function () {
             $("#search-button").empty();
             $("#search-button").addClass("disabled");
             $("#search-button").append(`<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-    Loading...`);
+                                        Loading...`);
             $("#search-table").empty();
-            $.get(`${api_url}/search=${document.getElementById("search-text").value}`, function (data) {
+
+            console.log("Getting ready to search!");
+            console.log(document.getElementById("search-text").value);
+
+            $.get(`${api_url}/search/${document.getElementById("search-text").value}`, function (data) {
+                console.log("LETS GET THIS PARTY STARTED");
                 $("#search-table").empty();
                 data.forEach(async element => {
                     $("#search-table").append($(
@@ -29,6 +34,8 @@ $(document).ready(function () {
                 $("#search-button").empty();
                 $("#search-button").append("Search");
                 $("#search-button").removeClass("disabled");
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                console.error("AJAX request failed:", textStatus, errorThrown);
             });
         }
     });
@@ -79,7 +86,7 @@ $(document).ready(function () {
             }
             $("#input_div").fadeOut(500);
             $("#spinner_search").fadeIn(500);
-            $.get(`${api_url}/recommendations=${$("#fromYear").text()}&${$("#toYear").text()}&${artists_in_list.join()}&${+ $("#popularArtists").is(":checked")}&${+ $("#explicit").is(":checked")}&${ids.join(";")}`, function (data) {
+            $.get(`${api_url}/recommendations/${$("#fromYear").text()}/${$("#toYear").text()}/${artists_in_list.join()}/${+ $("#popularArtists").is(":checked")}/${+ $("#explicit").is(":checked")}/${ids.join(";")}`, function (data) {
                 $("#spinner_search").hide();
                 $("#recommendations_div").fadeIn(500);
                 data.forEach(element => {

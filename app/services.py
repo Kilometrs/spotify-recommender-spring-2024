@@ -63,6 +63,7 @@ def get_recommendation(from_year, to_year, listed_artists, popular_artists, not_
     else:
         print('No tracks found for the given parameters.')
         return [], [], [], [], [], [], []
+    
     tracks_list.columns=["name", "artist", "album", "year", "uri", "img", "acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]
     scaler = StandardScaler()
     tracks_list[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]] = scaler.fit_transform(tracks_list[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]])

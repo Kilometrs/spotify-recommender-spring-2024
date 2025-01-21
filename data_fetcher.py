@@ -1,11 +1,13 @@
 import time
 import sys
+import traceback
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 import config
 import requests
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy.exceptions import SpotifyException
 from sqlalchemy import create_engine
 from time import sleep
 from sqlalchemy import text
@@ -239,16 +241,6 @@ if getStatus(phase) == 0:
     total_rows = result.rowcount
     for index,row in enumerate(result, start=1):
         start_time = time.time()
-        if index % 5 == 0:
-            print("Resting...")
-            sleep(60)
-
-        if counter == 1000:
-            print("The very big resting period!")
-            print("Going for coffee, be back in 15 mins.")
-            sleep(900)
-            counter = 0
-
         try:
             sleep(albumSleepTimer)
             print("----")
@@ -265,7 +257,6 @@ if getStatus(phase) == 0:
                     img = album['images'][0]['url']
                 except:
                     img = ''
-                # print(f"{row[0]} -- {album['id']} -- {index}/{result.rowcount} -- {album_name}")
                 print(f"{x['artists'][0]['name']} --  {counter}/{albumCount} -- {index}/{result.rowcount} -- {album_name}")
                 if conn.execute(text(f"SELECT id FROM albums WHERE id = '{album['id']}'")).rowcount == 0:
                     conn.execute(text(f"INSERT IGNORE INTO albums (id,name,type,popularity,year,img,uri) VALUES ('{album['id']}','{album_name}','{album['album_type']}','{album['popularity']}','{album['release_date'][:4]}','{img}','{album['uri']}')"))
@@ -316,8 +307,8 @@ if getStatus(phase) == 0:
         except Exception as e:
             print(f"Error occurred: {e}")
             continue
-    setStatusAsDone(phase)
     trans.commit()
+    setStatusAsDone(phase)
     phase += 1
 else:
     phase +=1
@@ -330,25 +321,49 @@ if getStatus(phase) == 0:
     for i, row in enumerate(result, start=1):
         try:
             tracks_in_album = sp.album_tracks(row[0])['items']
+            # print(tracks_in_album)
             sleep(1.5)
             features = sp.audio_features([x['id'] for x in tracks_in_album])
+            sleep(1.5)
+            # print(features)
             features = [x if x != None else {'acousticness': 0, 'danceability': 0, 'duration_ms': 0, 'energy': 0, 'instrumentalness': 0, 'key': 0, 'liveness': 0, 'valence':0, 'loudness': 0, 'mode': 0, 'speechiness': 0, 'tempo': 0, 'time_signature': 0} for x in features]
             for index, track in enumerate(tracks_in_album,start=0):
                 conn.execute(text(f"""
-                INSERT IGNORE INTO tracks (id, name, explicit, uri, duration, key, mode, time_signature, acousticness, danceability, energy, instrumentalness, liveness, loudness, speechiness, valence, tempo, album_id)
-                values ('{track['id']}','{track['name'].replace("'","").replace("-","").replace("%","")}','{track['explicit']}','{track['uri']}','{track['duration_ms']}','{features[index]['key']}',
+                INSERT IGNORE INTO tracks (`id`, `name`, `explicit`, `uri`, `duration`, `key`, `mode`, `time_signature`, `acousticness`, `danceability`, `energy`, `instrumentalness`, `liveness`, `loudness`, `speechiness`, `valence`, `tempo`, `album_id`)
+                values('{track['id']}','{track['name'].replace("'","").replace("-","").replace("%","")}','{track['explicit']}','{track['uri']}','{track['duration_ms']}','{features[index]['key']}',
                 '{features[index]['mode']}','{features[index]['time_signature']}','{features[index]['acousticness']}','{features[index]['danceability']}',
                 '{features[index]['energy']}','{features[index]['instrumentalness']}','{features[index]['liveness']}','{features[index]['loudness']}',
-                '{features[index]['speechiness']}','{features[index]['valence']}','{features[index]['tempo']}','{row['id']}') 
+                '{features[index]['speechiness']}','{features[index]['valence']}','{features[index]['tempo']}','{row[0]}') 
                 """))
                 for artist in track['artists']:
                     if conn.execute(text(f"select id from artists where id ='{artist['id']}'")).rowcount == 0:
                         conn.execute(text(f"INSERT IGNORE INTO artists (id,name,genres,popularity,img,uri,albums_dumped,processed) values ('{artist['id']}','0','0','0','0','0',false,false) "))
                     conn.execute(text(f"INSERT IGNORE INTO artists_tracks (artist_id, track_id) values ('{artist['id']}','{track['id']}') "))
             conn.execute(text(f"update albums set tracks_dumped = '1' where id = '{row[0]}'"))
-            print(f"{round((i/result.rowcount)*100,2)}% {row['name']}")
+            print(f"{round((i/result.rowcount)*100,2)}% {row[1]}")
+        except SpotifyException as e:
+            if e.http_status == 429:
+                retry_after = int(e.headers.get('Retry-After', 120))
+                print(f"You've been rate limited by Spotify. Retrying in {retry_after} seconds...")
+                time.sleep(retry_after)
+                print("Too many requests made to the Spotify API, exiting.")
+                sys.exit(1)
+            else:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback_details = traceback.extract_tb(exc_traceback)
+                filename, line_number, func_name, text = traceback_details[-1]
+
+                print(f"An error occurred at line {line_number}: {e}")
+                print(traceback.format_exc())
+                exit()
         except Exception as e:
-            print(f"Error occurred: {e}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_details = traceback.extract_tb(exc_traceback)
+            filename, line_number, func_name, text = traceback_details[-1]
+
+            print(f"An error occurred at line {line_number}: {e}")
+            print(traceback.format_exc())
+            exit()
             continue
     conn.execute(text(f"UPDATE artists SET processed = '1' WHERE tracks_dumped = '1'"))
     trans.commit()

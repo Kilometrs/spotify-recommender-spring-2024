@@ -10,7 +10,7 @@ import spotipy
 repository = Repository(config.DBUSER, config.DBPASSWORD, config.HOST, config.DATABASE)
 print("Repo initialized")
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=config.SPOTIFY_CLIENT_ID, client_secret=config.SPOTIFY_CLIENT_SECRET))
-# print("Track name:", sp.track('6rqhFgbbKwnb9MLmUQDhG6')['name'])
+print("<DEBUG> Track name:", sp.track('6rqhFgbbKwnb9MLmUQDhG6')['name'])
 
 def search(search_string):
     results = []
@@ -18,19 +18,19 @@ def search(search_string):
         results = sp.search(q=search_string,type="track")['tracks']['items']
     return jsonify(results)
 
-def get_artist_features(self, artist_id):
+def get_artist_features( artist_id):
     name, features_values = repository.select_artist_features(artist_id)
     features_keys = ['acousticness', 'danceability', 'energy', 'instrumentalness', 'liveness', 'speechiness', 'valence']
     data = {features_keys[i]: features_values[i] for i in range(len(features_keys))}
     return jsonify({"name": name, "chart": data})
 
-def get_artists_top(self, top):
+def get_artists_top( top):
     return jsonify(repository.select_top_artists(top))
 
-def get_counts(self):
+def get_counts():
     return jsonify(repository.select_counts())
 
-def get_dataset_stats(self):
+def get_dataset_stats():
     albums_per_year=repository.select_albums_by_year()
     artists_per_genre=repository.select_artists_by_genres()
     artists_per_popularity=repository.select_artists_by_popularity()
@@ -38,7 +38,9 @@ def get_dataset_stats(self):
     return albums_per_year, artists_per_genre, artists_per_popularity, artist_list
 
 def get_recommendations(from_year, to_year, listed_artists, popular_artists, exclude_explicit, track_ids):
+    print("Track IDs:", track_ids)
     names, artists, albums, years, imgs, uris, matches = get_recommendation(from_year, to_year, listed_artists, popular_artists, exclude_explicit, sp.audio_features(track_ids))
+    print("RECOMMENDATIONS HAVE BEEN MADE I REALLY HOPE :))))")
     return jsonify ([{"name": names[i], "artist": artists[i], "album": albums[i], "year": int(years[i]), "img": imgs[i], "uri": "https://open.spotify.com/track/" + uris[i][14:], "match": matches[i]} for i in range(len(names))])
 
 
@@ -53,7 +55,6 @@ def get_recommendation(from_year, to_year, listed_artists, popular_artists, not_
     for features in features_list:
         for key in keys_to_remove:
             features.pop(key)
-
     tracks_list = pd.DataFrame.from_dict(repository.select_all_tracks(listed_artists, popular_artists, not_explicit, from_year, to_year),
     orient="columns")
     print(tracks_list)
@@ -63,7 +64,7 @@ def get_recommendation(from_year, to_year, listed_artists, popular_artists, not_
     else:
         print('No tracks found for the given parameters.')
         return [], [], [], [], [], [], []
-    
+
     tracks_list.columns=["name", "artist", "album", "year", "uri", "img", "acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]
     scaler = StandardScaler()
     tracks_list[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]] = scaler.fit_transform(tracks_list[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]])
@@ -73,7 +74,10 @@ def get_recommendation(from_year, to_year, listed_artists, popular_artists, not_
 
     for features in features_list:
         song = pd.DataFrame(columns=['acousticness','danceability','energy','instrumentalness','liveness','speechiness','valence','tempo'])
-        song = song.append(features, ignore_index=True)
+        if song.empty:
+            song = pd.DataFrame(features, index=[0], columns=["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"])
+        else:
+            song = song.append(pd.DataFrame(features, index=[0], columns=["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence", "tempo"]), ignore_index=True)
         song = scaler.transform(song)
 
         results = create_similarity(song,tracks_list).T[0].sort_values(ascending=False).reset_index()

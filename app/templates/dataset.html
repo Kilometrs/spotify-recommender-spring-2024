@@ -11,16 +11,16 @@
   <h2 class="display-5">Exploratory data analysis</h2>
 </div>
 <div class="accordion" id="accordion1" style="margin-top: 40px;">
-  <div class="accordion-item">
+
+  <!-- <div class="accordion-item">
     <h2 class="accordion-header" id="headingOne">
       <button class="accordion-button collapsed btn-secondary" type="button" data-bs-toggle="collapse"
         data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne" style="font-size: 25px;">
-        Album count by year
+        Albumu skaits pēc gadiem
       </button>
     </h2>
     <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordion1">
       <div class="accordion-body">
-        <!-- TODO: Chart js barplot with albums_per_year -->
       </div>
     </div>
   </div>
@@ -28,12 +28,11 @@
     <h2 class="accordion-header" id="headingTwo">
       <button class="accordion-button collapsed btn-secondary" type="button" data-bs-toggle="collapse"
         data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo" style="font-size: 25px;">
-        Artist count in most popular genres
+        Mākslinieku skaits populārākajos žanros
       </button>
     </h2>
     <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion1">
       <div class="accordion-body">
-        <!-- TODO: Chart js barplot with artists_by_genre-->
       </div>
     </div>
   </div>
@@ -41,21 +40,21 @@
     <h2 class="accordion-header" id="headingThree">
       <button class="accordion-button collapsed btn-secondary" type="button" data-bs-toggle="collapse"
         data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree" style="font-size: 25px;">
-        Artist popularity distribution
+        Mākslinieku popularitātes sadalījums
       </button>
     </h2>
     <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree"
       data-bs-parent="#accordion1">
       <div class="accordion-body">
-        <!-- TODO: Chart js barplot with artists_by_popularity -->
       </div>
     </div>
-  </div>
+  </div> -->
+
   <div class="accordion-item">
     <h2 class="accordion-header" id="headingFour">
       <button class="accordion-button collapsed btn-secondary" type="button" data-bs-toggle="collapse"
         data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour" style="font-size: 25px;">
-        Top 10 artists by popularity
+        10 populārākie mākslinieki
       </button>
     </h2>
     <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour"
@@ -77,11 +76,11 @@
       </div>
     </div>
   </div>
-  <div class="accordion-item">
+  <!-- <div class="accordion-item">
     <h2 class="accordion-header" id="headingFive">
       <button class="accordion-button collapsed btn-secondary" type="button" data-bs-toggle="collapse"
         data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive" style="font-size: 25px;">
-        Average features by artist
+        Vidējās īpašības pēc māksliniekiem
       </button>
     </h2>
     <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive"
@@ -90,7 +89,7 @@
         <div class="dropdown d-grid gap-2">
           <a class="btn btn-primary dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
             data-bs-toggle="dropdown" aria-expanded="false">
-            Select artist
+            Izvēlieties mākslinieku
           </a>
           <ul class="dropdown-menu" aria-labelledby="dropdownMenuLink">
             {%for artist in artist_list%}
@@ -103,7 +102,7 @@
         <div class="d-flex justify-content-center">
           <div id="spinner_artist_features" class="spinner-grow" style="width: 15rem; height: 15rem; margin-top: 5rem; display: none;"
             role="status">
-            <span class="visually-hidden">Loading...</span>
+            <span class="visually-hidden">Ielādē...</span>
           </div>
         </div>
 
@@ -114,8 +113,8 @@
       </div>
     </div>
   </div>
-</div>
-
+</div> -->
+<!-- 
 <div class="border-bottom" style="margin-bottom: 20px; margin-top: 30px;">
   <h2 class="display-5">Download</h2>
 </div>
@@ -125,7 +124,9 @@
     <use xlink:href="static/icons/bootstrap-icons.svg#download" />
   </svg></button>
 </div>
+-->
 <script src="https://cdn.rawgit.com/coderitual/odoo/feature/codevember16/lib/odoo.js"></script>
+
 <script>
   api_url = "http://127.0.0.1:5000/recommender/api/v1.0"
   $.get(`${api_url}/stats`, function (data) {
@@ -159,10 +160,9 @@
       $.get(`${api_url}/artists/${$(event.target).attr('artist_id')}/features`, function (data) {
         $("#dropdownMenuLink").text(data.name);
         $("#spinner_artist_features").hide();
-        // TODO: Change line next line to append chart.js radar chart instead
         $("#artist_radar_chart_div").append(`<img class="rounded mx-auto d-block" src="data:image/png;base64,${data.chart}" />`).hide().fadeIn(500);
       });
     });
   });
-</script>
+</script> 
 {% endblock %}

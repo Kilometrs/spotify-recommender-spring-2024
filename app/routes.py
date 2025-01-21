@@ -1,9 +1,6 @@
 from flask import render_template, send_file, request
-from app import test
 from app import app, services, config
 from werkzeug.routing import BaseConverter
-import warnings
-import logging
 
 class StrListConverter(BaseConverter):
     regex = r'\w+(?:;\w+)*;?'
@@ -25,7 +22,10 @@ def home():
 def dataset():
     albums_per_year, artists_by_genre, artists_by_popularity, artist_list = services.get_dataset_stats()
     return render_template('dataset.html', page='dataset',
-    artist_list=artist_list, albums_per_year=albums_per_year, artists_by_genre=artists_by_genre, artists_by_popularity=artists_by_popularity)
+    artist_list=artist_list, 
+    albums_per_year=albums_per_year, 
+    artists_by_genre=artists_by_genre, 
+    artists_by_popularity=artists_by_popularity)
 
 @app.route('/about')
 def about():
